@@ -1,37 +1,38 @@
 import { Router } from 'express';
-import facets from './facets';
 import moment from 'moment';
-import search from './search'
-import {API_KEY} from '../lib/constants';
+import {searchImageByString} from './image_search';
 
 export default ({ config, db }) => {
 	let api = Router();
 
-	// mount the facets resource
-	api.use('/facets', facets({ config, db }));
-
-	// api.use('/search', search({db,api}));
-	// perhaps expose some API metadata at the root
+	// get index page
 	api.get('/', (req, res) => {
 		res.sendFile(__dirname + '/index.html')
 	});
-
-	api.get('/search', (req, res) => {
-		db.collection('searches').find().toArray((err,results) => {
-			res.json({message: results[0]})
+	// get all searches
+	api.get('/searches', (req, res) => {
+		db.collection('searches').find({},{_id: 0}).toArray((err,results) => {
+			res.json(results)
 		})
 		// res.json({message: db})
 	})
+	// search for another image and add to searches collection
 	api.post('/search/:imgstr', (req, res) => {
-		const search = req.params.imgstr
-		const date = moment()
-		db.collection('searches').insert({name: search,date}, (err,results) => {
+		const searchQuery = req.params.imgstr
+		const offset = req.query.offset
+		const date = moment().format('DD-MM-YYYY, HH:MM:SS')
+		console.log(date);
+		db.collection('searches').insert({name: searchQuery,date}, (err) => {
 			if (err) {
 				res.json('error saving data')
 			}
-			res.json({results})
+			searchImageByString(searchQuery)
+			.then((resp) => {
+				const slicedResponse = offset ? resp.splice(0,offset) : resp
+				res.json(slicedResponse)
+			})
+			.catch((err) => {res.json({err})})
 		})
-		// res.json({message: db})
 	})
 
 	return api;
